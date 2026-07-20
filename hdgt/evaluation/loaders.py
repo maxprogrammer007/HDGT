@@ -193,12 +193,18 @@ class GraphLoader:
         Load and return the HeteroData graph for the given context_id.
         Returns None if the file does not exist (graph not yet compiled).
         """
+        if not _TORCH_GEOMETRIC_AVAILABLE:
+            raise ImportError(
+                "torch and torch_geometric are required to load graphs. "
+                "Install them on the workstation with: "
+                "pip install torch torch-geometric"
+            )
         path = self.graphs_dir / f"{context_id}_graph.pt"
         if not path.exists():
             logger.debug(f"Graph not found: {path}")
             return None
         try:
-            data: HeteroData = torch.load(path, weights_only=False)
+            data = torch.load(path, weights_only=False)
             return data
         except Exception as e:
             logger.warning(f"Failed to load graph {path}: {e}")

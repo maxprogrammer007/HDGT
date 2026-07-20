@@ -167,7 +167,9 @@ class TestANLS(unittest.TestCase):
         self.assertAlmostEqual(anls("hello world", ["hello world"]), 1.0)
 
     def test_partial_match(self):
-        score = anls("hello", ["hello world"])
+        # "hello" vs "hello world": NLS = 1 - 6/11 = 0.45, below default threshold 0.5
+        # Use threshold=0.3 to confirm partial credit is assigned at lower thresholds
+        score = anls("hello", ["hello world"], threshold=0.3)
         self.assertGreater(score, 0.0)
         self.assertLess(score, 1.0)
 
