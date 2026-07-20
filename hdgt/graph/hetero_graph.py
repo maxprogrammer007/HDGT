@@ -58,6 +58,10 @@ def build_hetero_data(
         data[ntype].node_ids  = [n.node_id  for n in node_builder.node_lists[ntype]]
         data[ntype].node_uids = [n.node_uid for n in node_builder.node_lists[ntype]]
         data[ntype].roles     = [n.role     for n in node_builder.node_lists[ntype]]
+        # Phase 1.6: raw text metadata for retrieval evaluation
+        data[ntype].contents  = [n.content  for n in node_builder.node_lists[ntype]]
+        data[ntype].bboxes    = [n.bbox     for n in node_builder.node_lists[ntype]]
+        data[ntype].pages     = [n.page     for n in node_builder.node_lists[ntype]]
 
     # ── Edges ──────────────────────────────────────────────────────────
     # Accumulate per (src_type, relation, dst_type)
