@@ -23,8 +23,14 @@ import zipfile
 from pathlib import Path
 from typing import Dict, Generator, List, Optional
 
-import torch
-from torch_geometric.data import HeteroData
+try:
+    import torch
+    from torch_geometric.data import HeteroData
+    _TORCH_GEOMETRIC_AVAILABLE = True
+except ImportError:
+    _TORCH_GEOMETRIC_AVAILABLE = False
+    HeteroData = None  # type: ignore
+
 
 logger = logging.getLogger(__name__)
 
