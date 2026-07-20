@@ -3,8 +3,9 @@ tests/test_evaluation_pipeline.py
 
 Phase 1.6 — Unit tests for the HDGT evaluation pipeline.
 
-All tests use synthetic in-memory data.
-No MP-DocVQA files or compiled graphs are required.
+All metric tests (Section 1) are pure Python and run anywhere.
+Retriever / graph tests (Sections 2-3) require torch_geometric and are
+automatically skipped on machines where it is not installed.
 
 Run:
     python -m pytest tests/test_evaluation_pipeline.py -v
@@ -19,9 +20,7 @@ from pathlib import Path
 # Ensure project root is on path
 sys.path.insert(0, str(Path(__file__).parent.parent.resolve()))
 
-import torch
-from torch_geometric.data import HeteroData
-
+# ── Metric imports (no heavy dependencies) ────────────────────────────────
 from hdgt.evaluation.metrics import (
     recall_at_k,
     mrr,
@@ -29,24 +28,40 @@ from hdgt.evaluation.metrics import (
     anls,
     compute_metrics,
 )
-from hdgt.evaluation.retriever import (
-    RandomRetriever,
-    BM25Retriever,
-    MockGraphRetriever,
-    get_retriever,
+
+# ── Conditional import of torch_geometric-dependent modules ───────────────
+try:
+    import torch
+    from torch_geometric.data import HeteroData
+    from hdgt.evaluation.retriever import (
+        RandomRetriever,
+        BM25Retriever,
+        MockGraphRetriever,
+        get_retriever,
+    )
+    from hdgt.evaluation.loaders import graph_to_node_list
+    TORCH_GEOMETRIC_AVAILABLE = True
+except ImportError:
+    TORCH_GEOMETRIC_AVAILABLE = False
+
+# Decorator to skip tests that need torch_geometric
+skip_if_no_pyg = unittest.skipUnless(
+    TORCH_GEOMETRIC_AVAILABLE,
+    "torch_geometric not installed — run on workstation with GPU environment",
 )
-from hdgt.evaluation.loaders import graph_to_node_list
 
 
 # ---------------------------------------------------------------------------
-# Helpers: build a synthetic HeteroData graph
+# Helpers: build a synthetic HeteroData graph (only callable if PyG is present)
 # ---------------------------------------------------------------------------
 
-def make_synthetic_graph(num_text: int = 5, num_table: int = 2) -> HeteroData:
+def make_synthetic_graph(num_text: int = 5, num_table: int = 2):
     """
     Build a small synthetic HeteroData with text and table nodes,
     plus a few reading_order and reference edges.
     """
+    if not TORCH_GEOMETRIC_AVAILABLE:
+        raise unittest.SkipTest("torch_geometric not available")
     data = HeteroData()
 
     # ── Text nodes ────────────────────────────────────────────────────
@@ -195,6 +210,7 @@ class TestComputeMetrics(unittest.TestCase):
 # Tests: Retrievers
 # ---------------------------------------------------------------------------
 
+@skip_if_no_pyg
 class TestRandomRetriever(unittest.TestCase):
 
     def setUp(self):
@@ -229,6 +245,7 @@ class TestRandomRetriever(unittest.TestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
 
 
+@skip_if_no_pyg
 class TestBM25Retriever(unittest.TestCase):
 
     def setUp(self):
@@ -259,6 +276,7 @@ class TestBM25Retriever(unittest.TestCase):
         self.assertEqual(scores, sorted(scores, reverse=True))
 
 
+@skip_if_no_pyg
 class TestMockGraphRetriever(unittest.TestCase):
 
     def setUp(self):
@@ -289,6 +307,7 @@ class TestMockGraphRetriever(unittest.TestCase):
 # Tests: graph_to_node_list
 # ---------------------------------------------------------------------------
 
+@skip_if_no_pyg
 class TestGraphToNodeList(unittest.TestCase):
 
     def test_all_nodes_returned(self):
@@ -311,6 +330,7 @@ class TestGraphToNodeList(unittest.TestCase):
 # Tests: get_retriever factory
 # ---------------------------------------------------------------------------
 
+@skip_if_no_pyg
 class TestGetRetriever(unittest.TestCase):
 
     def test_valid_methods(self):
