@@ -90,6 +90,12 @@ def parse_args() -> argparse.Namespace:
         help="Build at most N graphs. Useful for smoke testing.",
     )
     parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=4,
+        help="Number of parallel worker processes for graph construction.",
+    )
+    parser.add_argument(
         "--gc-every",
         type=int,
         default=50,
@@ -101,6 +107,41 @@ def parse_args() -> argparse.Namespace:
         help="Enable verbose Docling parser output.",
     )
     return parser.parse_args()
+
+
+# ---------------------------------------------------------------------------
+# Worker function for parallel processing
+# ---------------------------------------------------------------------------
+
+def _build_single_graph(item: tuple) -> str:
+    context_id, pdf_path_str, graph_path_str, edge_cfg, verbose = item
+    pdf_path   = Path(pdf_path_str)
+    graph_path = Path(graph_path_str)
+
+    if graph_path.exists():
+        return "skip"
+
+    if not pdf_path.exists():
+        return "missing"
+
+    try:
+        parser_obj = DoclingParser(verbose=verbose, save_figures=False)
+        nodes      = parser_obj.parse(pdf_path, document_id=context_id)
+
+        node_builder = NodeBuilder()
+        node_builder.build(nodes)
+
+        edge_builder = EdgeBuilder(edge_cfg)
+        edges        = edge_builder.build(nodes, node_builder)
+
+        data = build_hetero_data(node_builder, edges)
+        data.validate()
+
+        torch.save(data, graph_path)
+        return "success"
+    except Exception as e:
+        logger.warning(f"Failed for {context_id}: {e}")
+        return "fail"
 
 
 # ---------------------------------------------------------------------------
@@ -117,10 +158,11 @@ def main() -> None:
     print("=" * 60)
     print("  HDGT — MP-DocVQA Graph Construction")
     print("=" * 60)
-    print(f"  Data root  : {root_dir}")
-    print(f"  Output dir : {output_dir}")
-    print(f"  Split      : {args.split}")
-    print(f"  Limit      : {args.limit or 'All'}")
+    print(f"  Data root   : {root_dir}")
+    print(f"  Output dir  : {output_dir}")
+    print(f"  Split       : {args.split}")
+    print(f"  Limit       : {args.limit or 'All'}")
+    print(f"  Num workers : {args.num_workers}")
     print("=" * 60)
 
     # ── Load config ─────────────────────────────────────────────────────
@@ -161,57 +203,42 @@ def main() -> None:
 
     print(f"\n  Processing {len(contexts):,} contexts...")
 
-    # ── Parser (shared across all documents) ─────────────────────────────
-    # save_figures=False: page images already exist in images/
-    # no need to re-extract figure crops for the graph builder.
-    parser_obj = DoclingParser(verbose=args.verbose, save_figures=False)
+    work_items = [
+        (
+            context_id,
+            str(root_dir / "pdfs" / f"{context_id}.pdf"),
+            str(output_dir / f"{context_id}_graph.pt"),
+            edge_cfg,
+            args.verbose,
+        )
+        for context_id in contexts.keys()
+    ]
 
     success_count = 0
     fail_count    = 0
     skip_count    = 0
 
-    for context_id, ctx_info in tqdm(contexts.items(), desc="Building graphs"):
-        pdf_path   = root_dir / "pdfs" / f"{context_id}.pdf"
-        graph_path = output_dir / f"{context_id}_graph.pt"
-
-        # Skip already-built graphs
-        if graph_path.exists():
-            skip_count += 1
-            continue
-
-        # Skip if PDF not compiled yet (images unavailable)
-        if not pdf_path.exists():
-            logger.debug(f"PDF not found: {pdf_path}")
-            fail_count += 1
-            continue
-
-        try:
-            # Step 1: Parse PDF
-            nodes = parser_obj.parse(pdf_path, document_id=context_id)
-
-            # Step 2: Build node features
-            node_builder = NodeBuilder()
-            node_builder.build(nodes)
-
-            # Step 3: Build edges
-            edge_builder = EdgeBuilder(edge_cfg)
-            edges        = edge_builder.build(nodes, node_builder)
-
-            # Step 4: Assemble HeteroData
-            data = build_hetero_data(node_builder, edges)
-            data.validate()
-
-            # Step 5: Save
-            torch.save(data, graph_path)
-            success_count += 1
-
-        except Exception as e:
-            logger.warning(f"Failed for {context_id}: {e}")
-            fail_count += 1
-
-        # Periodic GC to prevent memory bloat on large batches
-        if success_count > 0 and success_count % args.gc_every == 0:
-            gc.collect()
+    if args.num_workers > 1:
+        from concurrent.futures import ProcessPoolExecutor, as_completed
+        with ProcessPoolExecutor(max_workers=args.num_workers) as executor:
+            futures = [executor.submit(_build_single_graph, item) for item in work_items]
+            for future in tqdm(as_completed(futures), total=len(work_items), desc="Building graphs (parallel)"):
+                res = future.result()
+                if res == "success":
+                    success_count += 1
+                elif res == "skip":
+                    skip_count += 1
+                else:
+                    fail_count += 1
+    else:
+        for item in tqdm(work_items, desc="Building graphs (sequential)"):
+            res = _build_single_graph(item)
+            if res == "success":
+                success_count += 1
+            elif res == "skip":
+                skip_count += 1
+            else:
+                fail_count += 1
 
     # ── Summary ───────────────────────────────────────────────────────────
     print("\n" + "=" * 60)

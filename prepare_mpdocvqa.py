@@ -71,22 +71,29 @@ def parse_args() -> argparse.Namespace:
 # Zip extraction
 # ---------------------------------------------------------------------------
 
-# Map from zip filename stem → subdirectory to extract into
-ZIP_MAP = {
-    "qas":    None,       # Extract train.json, val.json, test.json directly to root
-    "images": "images",   # Extract page images to images/
-    "ocr":    "ocr",      # Amazon Textract OCR JSON files
-    "imdbs":  "mpdocvqa_imdbs",  # Processed IMDB files
-}
+# Map from possible archive filenames → (subdirectory to extract into, stem_name)
+ARCHIVE_SPECS = [
+    (["qas.zip"], None, "qas"),
+    (["images.tar.gz", "images.zip", "images.tgz"], "images", "images"),
+    (["ocr.tar.gz", "ocr.zip", "ocr.tgz"], "ocr", "ocr"),
+    (["mpdocvqa_imdbs.zip", "imdbs.zip"], "mpdocvqa_imdbs", "imdbs"),
+]
 
 
 def extract_zips(root_dir: Path, skip: bool = False) -> None:
-    """Auto-detect and extract all known zip files in root_dir."""
-    print("\n[1/4] Checking and extracting zip files...")
-    for stem, subdir in ZIP_MAP.items():
-        zip_path = root_dir / f"{stem}.zip"
-        if not zip_path.exists():
-            print(f"  [SKIP] {stem}.zip — not found.")
+    """Auto-detect and extract all known zip/tar.gz archives in root_dir."""
+    import tarfile
+    print("\n[1/4] Checking and extracting archive files...")
+    for candidates, subdir, stem in ARCHIVE_SPECS:
+        archive_path = None
+        for cand in candidates:
+            p = root_dir / cand
+            if p.exists():
+                archive_path = p
+                break
+
+        if archive_path is None:
+            print(f"  [SKIP] {stem} archive — not found (checked: {', '.join(candidates)}).")
             continue
 
         # Determine extraction target
@@ -103,21 +110,29 @@ def extract_zips(root_dir: Path, skip: bool = False) -> None:
             already_extracted = target.exists() and any(target.iterdir())
 
         if already_extracted:
-            print(f"  [OK]   {stem}.zip — already extracted.")
+            print(f"  [OK]   {archive_path.name} — already extracted.")
             continue
 
         if skip:
-            print(f"  [SKIP] {stem}.zip — --skip-extract flag set.")
+            print(f"  [SKIP] {archive_path.name} — --skip-extract flag set.")
             continue
 
-        print(f"  Extracting {stem}.zip → {target} ...")
+        print(f"  Extracting {archive_path.name} → {target} ...")
         target.mkdir(parents=True, exist_ok=True)
-        with zipfile.ZipFile(zip_path, "r") as zf:
-            # Extract with progress bar
-            members = zf.infolist()
-            for member in tqdm(members, desc=f"  {stem}.zip", unit="file"):
-                zf.extract(member, target)
-        print(f"  [DONE] {stem}.zip extracted ({len(members)} files).")
+        if archive_path.name.endswith(".zip"):
+            with zipfile.ZipFile(archive_path, "r") as zf:
+                members = zf.infolist()
+                for member in tqdm(members, desc=f"  {archive_path.name}", unit="file"):
+                    zf.extract(member, target)
+        elif archive_path.name.endswith((".tar.gz", ".tgz", ".tar")):
+            with tarfile.open(archive_path, "r:*") as tf:
+                members = tf.getmembers()
+                kw = {}
+                if hasattr(tarfile, 'data_filter'):
+                    kw['filter'] = 'data'
+                for member in tqdm(members, desc=f"  {archive_path.name}", unit="file"):
+                    tf.extract(member, target, **kw)
+        print(f"  [DONE] {archive_path.name} extracted.")
 
 
 # ---------------------------------------------------------------------------

@@ -1,2 +1,25 @@
 data/CloudCompare_v2.14.beta_setup_x64.exe
 *.pyc
+__pycache__/
+.venv/
+
+# MP-DocVQA large data files
+data/MP-DocVQA/images/
+data/MP-DocVQA/ocr/
+data/MP-DocVQA/pdfs/
+data/MP-DocVQA/mpdocvqa_imdbs/
+data/MP-DocVQA/*.tar.gz
+data/MP-DocVQA/*.zip
+data/MP-DocVQA/*.json
+
+# Generated experiment files & graphs
+experiments/mpdocvqa/
+experiments/*.pt
+experiments/*.jsonl
+
+# Temporary outputs
+*.log
+test_output.txt
+test_output_ascii.txt
+batch_results*.txt
+
