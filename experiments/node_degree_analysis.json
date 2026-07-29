@@ -1,0 +1,17 @@
+{
+  "Low Degree (1-3 edges)": {
+    "recall@1": 54.76536042573778,
+    "recall@10": 89.01790033865505,
+    "count": 2067
+  },
+  "Medium Degree (4-7 edges)": {
+    "recall@1": 50.41237113402062,
+    "recall@10": 88.14432989690721,
+    "count": 970
+  },
+  "High Degree (8+ edges)": {
+    "recall@1": 32.64367816091954,
+    "recall@10": 83.44827586206897,
+    "count": 435
+  }
+}

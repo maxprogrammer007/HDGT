@@ -157,37 +157,75 @@ def reduce_umap(embs: np.ndarray) -> np.ndarray:
     return reducer.fit_transform(embs)
 
 
-def plot_by_role(coords: np.ndarray, roles: list, method: str,
-                 out_dir: Path):
-    """Scatter plot coloured by node role."""
-    fig, ax = plt.subplots(figsize=(12, 9))
-    ax.set_facecolor("#1a1a2e")
-    fig.patch.set_facecolor("#1a1a2e")
+def plot_by_role(coords: np.ndarray, roles: list, method: str, out_dir: Path):
+    """Publication-grade UMAP scatter plot coloured by node role."""
+    fig, ax = plt.subplots(figsize=(10, 8), dpi=300)
+    ax.set_facecolor("#0f172a")
+    fig.patch.set_facecolor("#0f172a")
 
-    unique_roles = sorted(set(roles))
+    # Map roles into distinct semantic categories
+    cleaned_roles = []
+    for r in roles:
+        r_str = str(r).lower()
+        if "table" in r_str or "cell" in r_str:
+            cleaned_roles.append("table")
+        elif "head" in r_str or "title" in r_str:
+            cleaned_roles.append("header")
+        elif "capt" in r_str or "fig" in r_str:
+            cleaned_roles.append("figure_caption")
+        elif "list" in r_str:
+            cleaned_roles.append("list_item")
+        elif "foot" in r_str or "note" in r_str:
+            cleaned_roles.append("footnote")
+        else:
+            cleaned_roles.append("paragraph")
+
+    unique_roles = ["paragraph", "table", "header", "figure_caption", "list_item", "footnote"]
+    role_labels = {
+        "paragraph":       "Paragraph Text",
+        "table":           "Table Cell Content",
+        "header":          "Section Header / Title",
+        "figure_caption":  "Figure Caption",
+        "list_item":       "List Item",
+        "footnote":        "Footnote / Metadata",
+    }
+    
+    role_colors = {
+        "paragraph":       "#38bdf8",  # Sky blue
+        "table":           "#f97316",  # Vibrant orange
+        "header":          "#4ade80",  # Mint green
+        "figure_caption":  "#f43f5e",  # Rose red
+        "list_item":       "#a855f7",  # Purple
+        "footnote":        "#eab308",  # Yellow
+    }
+
     for role in unique_roles:
-        mask = np.array([r == role for r in roles])
-        color = ROLE_COLORS.get(role, ROLE_COLORS["other"])
+        mask = np.array([r == role for r in cleaned_roles])
+        if not mask.any():
+            continue
         ax.scatter(
             coords[mask, 0], coords[mask, 1],
-            c=color, label=role, alpha=0.55, s=4, linewidths=0,
+            c=role_colors[role], label=role_labels[role],
+            alpha=0.65, s=8, linewidths=0,
         )
 
-    ax.legend(title="Node Role", title_fontsize=9, fontsize=8,
-              loc="lower right", framealpha=0.3,
-              labelcolor="white", facecolor="#2a2a4e", edgecolor="#555")
-    ax.set_title(f"Qwen2.5-VL Node Embeddings — {method.upper()}\nColoured by Node Role",
-                 color="white", fontsize=13, pad=12)
-    ax.tick_params(colors="gray")
-    ax.set_xlabel(f"{method.upper()} dim 1", color="gray")
-    ax.set_ylabel(f"{method.upper()} dim 2", color="gray")
+    legend = ax.legend(title="Document Element Role", title_fontsize=10, fontsize=9,
+                       loc="lower right", framealpha=0.4,
+                       labelcolor="white", facecolor="#1e293b", edgecolor="#475569")
+    legend.get_title().set_color("white")
+    
+    ax.set_title("UMAP Projection of Qwen2.5-VL Node Embeddings\nGrouped by Structural Document Element Role",
+                 color="white", fontsize=13, pad=14, fontweight="semibold")
+    ax.tick_params(colors="#94a3b8")
+    ax.set_xlabel("UMAP Dimension 1", color="#94a3b8", fontsize=10)
+    ax.set_ylabel("UMAP Dimension 2", color="#94a3b8", fontsize=10)
     for spine in ax.spines.values():
-        spine.set_edgecolor("#444")
+        spine.set_edgecolor("#334155")
 
-    out = out_dir / f"embeddings_{method}_by_role.png"
-    fig.savefig(out, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
+    out = out_dir / f"embeddings_umap_by_node_role.png"
+    fig.savefig(out, dpi=300, bbox_inches="tight", facecolor=fig.get_facecolor())
     plt.close(fig)
-    logger.info(f"  Saved: {out}")
+    logger.info(f"  Saved publication UMAP plot: {out}")
     return out
 
 
