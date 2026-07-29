@@ -201,8 +201,14 @@ class GraphLoader:
             )
         path = self.graphs_dir / f"{context_id}_graph.pt"
         if not path.exists():
-            logger.debug(f"Graph not found: {path}")
-            return None
+            # Fallback: match by doc_id prefix
+            doc_id = context_id.split("_p")[0]
+            matches = list(self.graphs_dir.glob(f"{doc_id}_*_graph.pt"))
+            if matches:
+                path = matches[0]
+            else:
+                logger.debug(f"Graph not found: {path}")
+                return None
         try:
             data = torch.load(path, weights_only=False)
             return data
@@ -233,16 +239,23 @@ def graph_to_node_list(graph: HeteroData) -> List[Dict]:
       node_uid, type, role, page, bbox, content
 
     Useful for BM25 indexing and ELA checks.
+
+    Note: PyG NodeStorage exposes tensor attributes via __getattr__, but
+    list-valued attributes (contents, pages, node_uids, etc.) are stored
+    in the internal _mapping dict and must be accessed via _mapping.get().
     """
     nodes = []
     for ntype in graph.node_types:
         ndata = graph[ntype]
         n = ndata.x.shape[0]
-        contents = getattr(ndata, "contents", [""] * n)
-        bboxes   = getattr(ndata, "bboxes",   [[0, 0, 0, 0]] * n)
-        pages    = getattr(ndata, "pages",    [0] * n)
-        uids     = getattr(ndata, "node_uids", [""] * n)
-        roles    = getattr(ndata, "roles",    [""] * n)
+
+        # Use _mapping.get() to correctly retrieve list-valued attributes
+        mapping = ndata._mapping
+        contents = mapping.get("contents", [""] * n)
+        bboxes   = mapping.get("bboxes",   [[0, 0, 0, 0]] * n)
+        pages    = mapping.get("pages",    [0] * n)
+        uids     = mapping.get("node_uids", [""] * n)
+        roles    = mapping.get("roles",    [""] * n)
 
         for i in range(n):
             nodes.append({

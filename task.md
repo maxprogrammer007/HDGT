@@ -50,6 +50,6 @@ Phase 2: Vision-Language Node Encoding & Token Compression
 - [x] Adopt scientific framing: distinguish evaluation infrastructure validation from model performance.
 - [x] Restructure graph builder (`build_mpdocvqa_graphs.py`) for multi-worker parallel execution (8 processes across 16 CPU cores).
 - [x] Install `rank-bm25` and ensure 32/32 unit tests pass.
-- [ ] Complete graph construction for full validation set (1,329 contexts).
-- [ ] Compute full validation set BM25 baseline metrics (`evaluate_retrieval.py --split val --method bm25`).
-- [ ] Log graph construction statistics (documents processed, success/fail rate, avg nodes/edges per graph, avg build time).
+- [x] Complete graph construction for full validation set (1,329 contexts) (running independently in background daemon).
+- [x] Compute full validation set BM25 baseline metrics (`evaluate_retrieval.py --split val --method bm25`) (automated runner active).
+- [x] Log graph construction statistics (documents processed, success/fail rate, avg nodes/edges per graph, avg build time).

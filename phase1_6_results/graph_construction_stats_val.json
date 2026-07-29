@@ -1,0 +1,12 @@
+{
+  "split": "val",
+  "total_contexts": 1329,
+  "successfully_built": 1329,
+  "already_existed": 0,
+  "failed_or_missing": 0,
+  "total_nodes": 188204,
+  "total_edges": 1139420,
+  "avg_nodes_per_graph": 141.6,
+  "avg_edges_per_graph": 857.3,
+  "success_rate": 100.0
+}
